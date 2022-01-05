@@ -173,7 +173,14 @@ function! clever_f#_mark_direct(forward, count) abort
 endfunction
 
 function! s:mark_char_in_current_line(map, char) abort
-    let regex = '\%' . line('.') . 'l' . s:generate_pattern(a:map, a:char)
+" --- Improved 1/3 -----------------------------------------------------------------------
+    let height = winheight('.')
+    let line  = line('.')
+    let sline = line - height < 0 ? 0 : line - height
+    let eline = line + height > line('$') ? line('$')+1 : line + height
+    let regex = '\%>' . sline . 'l' . '\%<' . eline . 'l' .  s:generate_pattern(a:map, a:char)
+    "let regex = '\%' . line('.') . 'l' . s:generate_pattern(a:map, a:char)
+" ----------------------------------------------------------------------------------------
     call matchadd('CleverFChar', regex , 999)
 endfunction
 
@@ -238,7 +245,10 @@ function! clever_f#find_with(map) abort
             let s:previous_map[mode] = a:map
             let s:first_move[mode] = 1
             let cn = s:getchar()
-            if cn == s:ESC_CODE
+" --- Improved 2/3 -----------------------------------------------------------------------
+            if cn == char2nr("\<M-q>") || cn == s:ESC_CODE
+            "if cn == s:ESC_CODE
+" ----------------------------------------------------------------------------------------
                 return "\<Esc>"
             endif
             if index(map(deepcopy(g:clever_f_repeat_last_char_inputs), 'char2nr(v:val)'), cn) == -1
@@ -390,6 +400,24 @@ function! clever_f#find(map, char_num) abort
     let s:moved_forward = moves_forward
     let s:previous_pos[mode] = next_pos
     let s:first_move[mode] = 0
+" --- Improved 3/3 -----------------------------------------------------------------------
+    if mode ==# 'no'
+      let s:pos = before_pos
+      let s:line = getline('.')[col('.'):]
+      function! s:remove_omap_highlight(force) abort
+        if a:force == 1 || s:pos !=# getpos('.')[1:2] || s:line !=# getline('.')[col('.')-1:]
+          call s:remove_highlight()
+          autocmd! plugin-clever-f-remove-omap-highlight
+        endif
+      endfunction
+      augroup plugin-clever-f-remove-omap-highlight
+        autocmd!
+        autocmd CursorMoved                               <buffer> call s:remove_omap_highlight(0)
+        autocmd WinEnter,WinLeave,CmdWinLeave,InsertEnter <buffer> call s:remove_omap_highlight(1)
+      augroup END
+      call s:mark_char_in_current_line(a:map, a:char_num)
+    endif
+" ----------------------------------------------------------------------------------------
 endfunction
 
 function! s:finalize() abort
